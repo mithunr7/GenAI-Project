@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompt Optimiser</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 32px; background: #0d1117; color: #c9d1d9; }
+    .container { max-width: 1000px; margin: auto; }
+    h1 { color: #58a6ff; margin-bottom: 8px; }
+    .subtitle { font-size: 0.9rem; color: #8b949e; margin-bottom: 24px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    textarea { width: 100%; min-height: 120px; padding: 12px; font-size: 1rem; border: 1px solid #30363d; border-radius: 8px; resize: vertical; background: #0d1117; color: #c9d1d9; }
+    textarea::placeholder { color: #6e7681; }
+    button { padding: 12px 20px; font-size: 1rem; border: none; border-radius: 8px; background: #238636; color: white; cursor: pointer; font-weight: 600; }
+    button:hover { background: #2ea043; }
+    button:disabled { background: #444; cursor: not-allowed; }
+    .section-title { font-size: 1.1rem; font-weight: 700; color: #58a6ff; margin-top: 16px; margin-bottom: 12px; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+    .info-box { background: #0d1117; border-left: 3px solid #1f6feb; padding: 12px; margin: 8px 0; border-radius: 4px; font-size: 0.95rem; }
+    .success { border-left-color: #3fb950; }
+    .warning { border-left-color: #d29922; }
+    .error { border-left-color: #f85149; }
+    pre { background: #0d1117; border: 1px solid #30363d; padding: 12px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-size: 0.9rem; }
+    .score-bar { display: flex; gap: 8px; margin: 8px 0; }
+    .score-item { flex: 1; }
+    .score-label { font-size: 0.85rem; color: #8b949e; }
+    .score-value { font-weight: 700; color: #58a6ff; }
+    .progress-bar { width: 100%; height: 6px; background: #30363d; border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #3fb950, #58a6ff); }
+    .tournament-result { background: #0d1117; border-left: 2px solid #1f6feb; padding: 12px; margin: 8px 0; border-radius: 4px; }
+    .winner { border-left-color: #3fb950; }
+    .mutation-badge { display: inline-block; background: #1f6feb; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; margin: 4px 4px 4px 0; }
+    .loading { color: #8b949e; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔄 PROMPT OPTIMIZER</h1>
+    
+    
+    <div class="card">
+      <div class="section-title">Raw Prompt</div>
+      <textarea id="prompt-input" placeholder="Enter your prompt to evolve through tournament-based mutation..."></textarea>
+      <button id="optimize-button" style="margin-top: 12px;">Evolve Prompt</button>
+    </div>
+    
+    <div id="output-container" style="display: none;">
+      <!-- Intent Extraction -->
+      <div class="card">
+        <div class="section-title">Intent Extraction (LIE)</div>
+        <div class="info-box">
+          <strong>Surface:</strong> <span id="intent-surface"></span>
+        </div>
+        <div class="info-box">
+          <strong>Deep Intent:</strong> <span id="intent-deep"></span>
+        </div>
+        <div class="info-box" style="border-left-color: #d29922;">
+          <strong>Implicit Constraints:</strong><br>
+          <span id="intent-implicit"></span>
+        </div>
+        <div class="info-box" style="border-left-color: #f85149;">
+          <strong>Antigoals (Failure Modes):</strong><br>
+          <span id="intent-antigoals"></span>
+        </div>
+      </div>
+      
+      <!-- Evolutionary Trace -->
+      <div class="card">
+        <div class="section-title">Evolutionary Trace</div>
+        <div id="trace-container"></div>
+      </div>
+      
+      <!-- Reflection Scores -->
+      <div class="card">
+        <div class="section-title">Fitness Scores Across Iterations</div>
+        <div id="reflection-scores"></div>
+      </div>
+      
+      <!-- Final Optimized Prompt -->
+      <div class="card">
+        <div class="section-title">Optimized Prompt</div>
+        <pre id="optimized-output"></pre>
+      </div>
+      
+      <!-- Why Better -->
+      <div class="card">
+        <div class="section-title">Why This Is Better</div>
+        <div class="info-box success" id="why-better"></div>
+      </div>
+    </div>
+    
+    <div id="error-container" style="display: none;">
+      <div class="card">
+        <div class="section-title" style="color: #f85149;">Error</div>
+        <div class="info-box error" id="error-message"></div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const button = document.getElementById('optimize-button');
+    const promptInput = document.getElementById('prompt-input');
+    const outputContainer = document.getElementById('output-container');
+    const errorContainer = document.getElementById('error-container');
+    
+    button.addEventListener('click', async () => {
+      const prompt = promptInput.value.trim();
+      if (!prompt) {
+        showError('Please enter a prompt to evolve.');
+        return;
+      }
+      
+      button.disabled = true;
+      button.textContent = 'Evolving...';
+      outputContainer.style.display = 'none';
+      errorContainer.style.display = 'none';
+      
+      try {
+        const response = await fetch('http://127.0.0.1:8000/optimize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, max_iterations: 3, theta: 0.85 }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || response.statusText);
+        }
+        
+        const data = await response.json();
+        displayResults(data);
+      } catch (error) {
+        showError(`Error: ${error.message}`);
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Evolve Prompt';
+      }
+    });
+    
+    function showError(message) {
+      errorContainer.style.display = 'block';
+      document.getElementById('error-message').textContent = message;
+      outputContainer.style.display = 'none';
+    }
+    
+    function displayResults(data) {
+      outputContainer.style.display = 'block';
+      errorContainer.style.display = 'none';
+      
+      // Intent
+      document.getElementById('intent-surface').textContent = data.intent.surface;
+      document.getElementById('intent-deep').textContent = data.intent.deep;
+      document.getElementById('intent-implicit').textContent = data.intent.implicit.length ? data.intent.implicit.join('; ') : 'None';
+      document.getElementById('intent-antigoals').textContent = data.intent.antigoals.length ? data.intent.antigoals.join('; ') : 'None';
+      
+      // Trace
+      const traceHtml = data.trace.map((step, idx) => {
+        if (step.step === 'intent_extraction') {
+          return '';
+        } else if (step.step === 'mutation') {
+          const badges = step.strategies_applied.map(s => `<span class="mutation-badge">${s}</span>`).join('');
+          return `<div class="info-box"><strong>Iteration ${step.iteration}:</strong> Mutation strategies applied: ${badges}</div>`;
+        } else if (step.step === 'reflection') {
+          const scorePercent = Math.round(step.score * 100);
+          return `<div class="info-box"><strong>Reflection:</strong> Fitness ${scorePercent}%<br><small>${step.gaps.join('; ') || 'No gaps'}</small></div>`;
+        }
+        return '';
+      }).join('');
+      document.getElementById('trace-container').innerHTML = traceHtml || '<p class="loading">No trace available.</p>';
+      
+      // Reflection Scores
+      const scoresHtml = data.reflection_scores.map(r => {
+        const s = r.scores;
+        return `
+          <div style="margin-bottom: 16px;">
+            <div style="font-weight: 600; margin-bottom: 8px;">Iteration ${r.iteration}:</div>
+            ${createScoreBar('Intent Align', s.intent_align)}
+            ${createScoreBar('Specificity', s.specificity)}
+            ${createScoreBar('Robustness', s.robustness)}
+            ${createScoreBar('Clarity', s.clarity)}
+            <div style="margin-top: 8px; font-weight: 700; color: #3fb950;">Overall: ${Math.round(s.overall * 100)}%</div>
+          </div>
+        `;
+      }).join('');
+      document.getElementById('reflection-scores').innerHTML = scoresHtml || '<p class="loading">No scores available.</p>';
+      
+      // Output
+      document.getElementById('optimized-output').textContent = data.optimized_prompt;
+      document.getElementById('why-better').textContent = data.why_better;
+    }
+    
+    function createScoreBar(label, score) {
+      const percent = Math.round(score * 100);
+      return `
+        <div class="score-item">
+          <div class="score-label">${label}: <span class="score-value">${percent}%</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width: ${percent}%;"></div></div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

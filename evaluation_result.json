@@ -1,0 +1,26 @@
+{
+  "length_metrics": {
+    "original_length": 24,
+    "optimized_length": 1997,
+    "length_ratio": 83.2083,
+    "pass_fail": "FAIL"
+  },
+  "clarity_metrics": {
+    "original_flesch_kincaid": 5.24,
+    "optimized_flesch_kincaid": 13.55,
+    "clarity_delta": -8.31,
+    "direction": "declined"
+  },
+  "specificity_metrics": {
+    "specificity_score": 1.0,
+    "explicit_constraints": 23
+  },
+  "semantic_metrics": {
+    "semantic_similarity": 0.5648,
+    "intent_drift_risk": "HIGH"
+  },
+  "statistical_metrics": {
+    "pvalue": 0.01,
+    "significant_at_alpha_0_05": true
+  }
+}
